@@ -1,4 +1,4 @@
-    (() => {
+(() => {
         /* ── Config ── */
         const C = {
             API_BASE: 'https://movie-api.avmango9.workers.dev/api/category/',
@@ -99,26 +99,20 @@
 function shuffleMoviesDaily(movies, category) {
     if (!movies || movies.length === 0) return movies;
     
-    // Get today's date as a string (YYYY-MM-DD)
     const today = new Date().toISOString().split('T')[0];
     const cacheKey = `shuffle_seed_${category}_${today}`;
     
-    // Check if we already have a seed for today
     let seed = localStorage.getItem(cacheKey);
     
     if (!seed) {
-        // Generate a random seed for today
         seed = Math.floor(Math.random() * 1000000).toString();
         localStorage.setItem(cacheKey, seed);
     }
     
-    // Use the seed to shuffle consistently for today
     const shuffled = [...movies];
     const seedNum = parseInt(seed);
     
-    // Simple seeded shuffle using the seed
     for (let i = shuffled.length - 1; i > 0; i--) {
-        // Generate pseudo-random number using seed
         const pseudoRandom = ((seedNum * (i + 1) * 9301 + 49297) % 233280) / 233280;
         const j = Math.floor(pseudoRandom * (i + 1));
         [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
@@ -127,7 +121,6 @@ function shuffleMoviesDaily(movies, category) {
     return shuffled;
 }
 
-/* ── Clear old shuffle seeds (optional - runs once per day) ── */
 function clearOldShuffleSeeds() {
     const today = new Date().toISOString().split('T')[0];
     const keys = Object.keys(localStorage);
@@ -141,7 +134,6 @@ function clearOldShuffleSeeds() {
     }
 }
 
-// Call this on page load to clean up old seeds
 clearOldShuffleSeeds();
 
         /* ── Toggle promo grid visibility ── */
@@ -254,7 +246,8 @@ clearOldShuffleSeeds();
             if (cat === 'home') {
                 url = '/';
             } else {
-                url = `/cat/${encodeURIComponent(cat)}`;
+                // 🔥 UPDATED: Use /p/cat/ instead of /cat/
+                url = `/p/cat/${encodeURIComponent(cat)}`;
                 if (slug) {
                     url += `/${encodeURIComponent(slug)}`;
                 }
@@ -268,7 +261,7 @@ clearOldShuffleSeeds();
                 queryParams.set('search', S.query);
             }
             const queryString = queryParams.toString();
-            if (queryString && cat !== 'home') url += `?${queryString}`;
+            if (queryString) url += `?${queryString}`;
             window.history.pushState({ category: cat, slug, page }, '', url);
         }
 
@@ -295,6 +288,7 @@ clearOldShuffleSeeds();
             return '';
         }
 
+        /* ── Route detection ── */
         function getRouteFromURL() {
             const path = window.location.pathname;
             const params = new URLSearchParams(window.location.search);
@@ -307,13 +301,25 @@ clearOldShuffleSeeds();
             if (path === '/' || path === '') {
                 return { category: 'home', slug: null };
             }
-            const match = path.match(/^\/cat\/([^\/]+)(?:\/(.+))?$/);
+            
+            // 🔥 UPDATED: Detect /p/cat/korean URLs
+            const match = path.match(/^\/p\/cat\/([^\/]+)(?:\/(.+))?$/);
             if (match) {
                 return {
                     category: decodeURIComponent(match[1]),
                     slug: match[2] ? decodeURIComponent(match[2]) : null
                 };
             }
+            
+            // Keep old /cat/ as fallback for compatibility
+            const oldMatch = path.match(/^\/cat\/([^\/]+)(?:\/(.+))?$/);
+            if (oldMatch) {
+                return {
+                    category: decodeURIComponent(oldMatch[1]),
+                    slug: oldMatch[2] ? decodeURIComponent(oldMatch[2]) : null
+                };
+            }
+            
             return null;
         }
 
@@ -393,7 +399,6 @@ clearOldShuffleSeeds();
             updateURL(S.cat, null, page);
             setPageTitle(`Tag: ${tag}`, S.cat, page);
 
-            // Hide home container
             D.homeContainer.style.display = 'none';
             D.homeContainer.innerHTML = '';
 
@@ -592,7 +597,6 @@ clearOldShuffleSeeds();
 
             D.homeContainer.innerHTML = html;
 
-            // Attach click events to movie cards in home sections
             D.homeContainer.querySelectorAll('.movie-card').forEach(card => {
                 card.addEventListener('click', function() {
                     const slug = this.dataset.slug;
@@ -770,9 +774,7 @@ clearOldShuffleSeeds();
                 return;
             }
 
-            // 🔥 FIX: If searching or showing search results, display them
             if (S.isSearching || S.isTagSearch) {
-                // Show search results in the grid
                 D.grid.className = 'movie-grid grid-enter';
                 D.homeContainer.style.display = 'none';
                 D.homeContainer.innerHTML = '';
@@ -808,7 +810,6 @@ clearOldShuffleSeeds();
                 return;
             }
 
-            // 🔥 HOME PAGE: Show home categories
             if (S.isHome) {
                 D.grid.innerHTML = '';
                 D.grid.className = 'movie-grid';
@@ -831,7 +832,6 @@ clearOldShuffleSeeds();
                 return;
             }
 
-            // 🔥 Category page: Regular grid with pagination
             if (!movies || !movies.length) {
                 D.grid.innerHTML = '';
                 D.empty.classList.remove('hidden');
@@ -862,10 +862,8 @@ clearOldShuffleSeeds();
 function showPlayer(movie) {
     let playerUrl;
 
-    // 🔥 FIX: Determine the correct category from the movie itself
     const movieCategory = movie.categories || movie.category || S.cat || 'korean';
     
-    // Check if the movie's category is a slug category
     if (isSlugCategory(movieCategory)) {
         const playerId = mSlug(movie);
         if (!playerId) {
@@ -899,12 +897,10 @@ function showPlayer(movie) {
     D.pIframe.src = playerUrl;
     D.pTitle.textContent = title;
     
-    // 🔥 FIX: Update S.cat to the movie's category for correct URL
     if (movieCategory && C.CATS.includes(movieCategory)) {
         S.cat = movieCategory;
         S.isHome = false;
         togglePromoGrid(false);
-        // Update tabs to reflect the correct category
         document.querySelectorAll('.cat-tab, .mobile-tab').forEach(t => {
             const isActive = t.dataset.cat === S.cat;
             t.classList.toggle('active', isActive);
@@ -952,7 +948,6 @@ function showPlayer(movie) {
         recommendSection.style.display = 'block';
     }
 
-    // 🔥 FIX: Update URL with the correct category from the movie
     updateURL(S.cat, mSlug(movie), S.currentPage);
     renderRecommendations();
 
@@ -976,7 +971,6 @@ function hidePlayer() {
     setPageTitle(null, S.cat, S.currentPage);
     updateURL(S.cat, null, S.currentPage);
 
-    // 🔥 Reload ads when returning to category page
     setTimeout(reloadAds, 300);
 
     if (window._scrollPos) {
@@ -995,14 +989,12 @@ function hidePlayer() {
             S.tagQuery = '';
             S.currentPage = page;
             
-            // 🔥 FIX: Properly handle home state when searching
             if (S.isSearching) {
                 S.isHome = false;
                 D.homeContainer.style.display = 'none';
                 D.homeContainer.innerHTML = '';
                 togglePromoGrid(false);
             } else {
-                // Clear search - go home
                 S.movies = [];
                 S.totalItems = 0;
                 S.totalPages = 0;
@@ -1035,7 +1027,6 @@ function hidePlayer() {
                 if (S.query) {
                     const lq = S.query.toLowerCase().trim();
                     
-                    // Try slug search first
                     try {
                         const slugQuery = lq.replace(/\s+/g, '-').replace(/[^a-z0-9\-]/g, '');
                         const slugResponse = await fetch(`${C.API_MOVIE}${encodeURIComponent(slugQuery)}`);
@@ -1066,7 +1057,6 @@ function hidePlayer() {
                         console.log('Slug search failed, trying full search...');
                     }
                     
-                    // Ensure cache is loaded
                     if (S.allMoviesFullCache.length === 0) {
                         try {
                             const allMovies = await fetchAllMoviesGlobally();
@@ -1087,7 +1077,6 @@ function hidePlayer() {
                         return;
                     }
                     
-                    // Search across all movies
                     const searchResults = S.allMoviesFullCache.filter(m => {
                         const title = (mTitle(m) || '').toLowerCase();
                         const id = String(mId(m) || '').toLowerCase();
@@ -1131,7 +1120,6 @@ function hidePlayer() {
                         D.hint.textContent = `Search: "${S.query}" — ${searchResults.length} movies found`;
                     }
                 } else {
-                    // Clear search - go home
                     S.movies = [];
                     S.totalItems = 0;
                     S.totalPages = 0;
@@ -1203,7 +1191,6 @@ async function loadCategory(cat, keepState = false) {
                 const result = await fetchCat(catName, 1);
                 let movies = result.movies || [];
                 
-                // 🔥 FIX: Shuffle movies randomly once per day
                 movies = shuffleMoviesDaily(movies, catName);
                 
                 homeMovies[catName] = movies.slice(0, C.HOME_VIDEOS_PER_CATEGORY);
