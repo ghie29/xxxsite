@@ -1,4 +1,13 @@
 // ============================================================
+// ★ FIX: Safe getElementById — never throws on missing nodes
+// ============================================================
+function $id(id) {
+  const el = document.getElementById(id);
+  if (!el) console.warn('[player2] Missing element #' + id);
+  return el;
+}
+
+// ============================================================
 // ICONS
 // ============================================================
 const ICONS = {
@@ -30,14 +39,14 @@ function iconHTML(name) {
 // ============================================================
 // LOADING OVERLAY
 // ============================================================
-const loadingOverlay = document.getElementById('loadingOverlay');
+const loadingOverlay = $id('loadingOverlay');
 
 function showLoading() {
-  loadingOverlay.classList.add('on');
+  if (loadingOverlay) loadingOverlay.classList.add('on');
 }
 
 function hideLoading() {
-  loadingOverlay.classList.remove('on');
+  if (loadingOverlay) loadingOverlay.classList.remove('on');
 }
 
 // ============================================================
@@ -60,13 +69,13 @@ function getLanguageDisplay(lang) {
 // SUBTITLE MODULE
 // ============================================================
 const SUBTITLE_WORKER = 'https://subtitlecat-worker.avmango9.workers.dev';
-const subtitleListEl = document.getElementById('subtitle-list');
-const subtitleContainer = document.getElementById('subtitle-container');
-const subtitleBtn = document.getElementById('subtitleBtn');
+const subtitleListEl = $id('subtitle-list');
+const subtitleContainer = $id('subtitle-container');
+const subtitleBtn = $id('subtitleBtn');
 let subtitleTracksLoaded = false;
 let subsOn = false;
 let subsOff = false;
-const subtitleDisplay = document.getElementById('subtitleDisplay');
+const subtitleDisplay = $id('subtitleDisplay');
 
 function extractJavCode(title) {
   if (!title) return '';
@@ -101,7 +110,7 @@ function fetchSubtitles(title, isAnime) {
   }
 
   console.log('🎯 Searching subtitles for:', searchTitle);
-  subtitleBtn.style.display = 'flex';
+  if (subtitleBtn) subtitleBtn.style.display = 'flex';
 
   fetch(SUBTITLE_WORKER + '/api/subtitle-tracks', {
     method: 'POST',
@@ -118,8 +127,10 @@ function fetchSubtitles(title, isAnime) {
     })
     .catch(function (err) {
       console.warn('⚠️ Subtitle fetch error:', err.message);
-      subtitleBtn.style.display = 'none';
-      subtitleBtn.classList.remove('active');
+      if (subtitleBtn) {
+        subtitleBtn.style.display = 'none';
+        subtitleBtn.classList.remove('active');
+      }
     });
 
   return true;
@@ -131,7 +142,7 @@ function fetchSubtitlesByCode(code) {
     return;
   }
   console.log('🔍 Fetching subtitles for:', code);
-  subtitleBtn.style.display = 'none';
+  if (subtitleBtn) subtitleBtn.style.display = 'none';
 
   fetch(SUBTITLE_WORKER + '/api/subtitle-tracks', {
     method: 'POST',
@@ -148,8 +159,10 @@ function fetchSubtitlesByCode(code) {
     })
     .catch(function (err) {
       console.warn('⚠️ Subtitle fetch error:', err.message);
-      subtitleBtn.style.display = 'none';
-      subtitleBtn.classList.add('active');
+      if (subtitleBtn) {
+        subtitleBtn.style.display = 'none';
+        subtitleBtn.classList.add('active');
+      }
     });
 }
 
@@ -177,8 +190,10 @@ function processSubtitleResponse(data) {
       if (!foundKorean) defaultIndex = 0;
 
       addSubtitlesToPlayer(filteredTracks, defaultIndex);
-      subtitleBtn.style.display = 'flex';
-      subtitleBtn.classList.add('active');
+      if (subtitleBtn) {
+        subtitleBtn.style.display = 'flex';
+        subtitleBtn.classList.add('active');
+      }
       subtitleTracksLoaded = true;
       console.log(
         '✅ ' +
@@ -189,8 +204,10 @@ function processSubtitleResponse(data) {
       );
     } else {
       console.log('ℹ️ No supported subtitles found');
-      subtitleBtn.style.display = 'none';
-      subtitleBtn.classList.remove('active');
+      if (subtitleBtn) {
+        subtitleBtn.style.display = 'none';
+        subtitleBtn.classList.remove('active');
+      }
     }
   } else if (data.pending) {
     console.log('⏳ Subtitles pending, retrying in 10s...');
@@ -199,14 +216,17 @@ function processSubtitleResponse(data) {
     }, 10000);
   } else {
     console.log('ℹ️ No subtitles available');
-    subtitleBtn.style.display = 'flex';
-    subtitleBtn.classList.remove('active');
+    if (subtitleBtn) {
+      subtitleBtn.style.display = 'flex';
+      subtitleBtn.classList.remove('active');
+    }
   }
 }
 
 function addSubtitlesToPlayer(tracks, defaultIndex) {
-  const videoEl = document.getElementById('videoPlayer');
+  const videoEl = $id('videoPlayer');
   if (!videoEl) return;
+  if (!subtitleListEl) return;
 
   const existingTracks = videoEl.querySelectorAll('track');
   existingTracks.forEach(function (t) {
@@ -215,7 +235,6 @@ function addSubtitlesToPlayer(tracks, defaultIndex) {
 
   subtitleListEl.innerHTML = '';
 
-  // OFF option
   const offItem = document.createElement('div');
   offItem.className = 'subtitle-item';
   offItem.dataset.index = '-1';
@@ -226,7 +245,6 @@ function addSubtitlesToPlayer(tracks, defaultIndex) {
   };
   subtitleListEl.appendChild(offItem);
 
-  // Separator
   const separator = document.createElement('div');
   separator.style.cssText =
     'border-bottom: 1px solid rgba(255,255,255,0.06); margin: 2px 8px;';
@@ -293,16 +311,20 @@ function addSubtitlesToPlayer(tracks, defaultIndex) {
   if (defaultIndex >= 0 && defaultIndex < tracks.length) {
     subsOn = true;
     subsOff = false;
-    subtitleBtn.classList.add('active');
-    subtitleBtn.style.display = 'flex';
+    if (subtitleBtn) {
+      subtitleBtn.classList.add('active');
+      subtitleBtn.style.display = 'flex';
+    }
     setTimeout(function () {
       selectSubtitle(defaultIndex);
     }, 100);
   } else {
     subsOn = false;
     subsOff = true;
-    subtitleBtn.classList.remove('active');
-    subtitleBtn.style.display = 'flex';
+    if (subtitleBtn) {
+      subtitleBtn.classList.remove('active');
+      subtitleBtn.style.display = 'flex';
+    }
     const offEl = subtitleListEl.querySelector('[data-index="-1"]');
     if (offEl) {
       offEl.classList.add('active');
@@ -318,12 +340,13 @@ function addSubtitlesToPlayer(tracks, defaultIndex) {
 // ============================================================
 // POSTER OVERLAY
 // ============================================================
-const posterOverlay = document.getElementById('poster-overlay');
-const posterTitle = document.getElementById('posterTitle');
-const posterBadge = document.getElementById('posterBadge');
-const posterError = document.getElementById('posterError');
+const posterOverlay = $id('poster-overlay');
+const posterTitle = $id('posterTitle');
+const posterBadge = $id('posterBadge');
+const posterError = $id('posterError');
 
 function setPosterImage(url, title) {
+  if (!posterError || !posterOverlay || !posterTitle || !posterBadge) return;
   posterError.style.display = 'none';
 
   if (
@@ -376,7 +399,7 @@ function setPosterImage(url, title) {
       posterTitle.classList.remove('show');
     }
     posterBadge.classList.add('show');
-    video.poster = fullUrl;
+    if (video) video.poster = fullUrl;
     console.log('✅ Poster loaded successfully:', fullUrl);
   };
   img.onerror = function () {
@@ -401,6 +424,7 @@ function setPosterImage(url, title) {
 }
 
 function tryAlternativeUrls(urls, index, title) {
+  if (!posterError || !posterOverlay || !posterTitle || !posterBadge) return;
   if (index >= urls.length) {
     posterError.style.display = 'block';
     posterOverlay.style.backgroundImage = '';
@@ -424,7 +448,7 @@ function tryAlternativeUrls(urls, index, title) {
       posterTitle.classList.add('show');
     }
     posterBadge.classList.add('show');
-    video.poster = urls[index];
+    if (video) video.poster = urls[index];
     console.log('✅ Poster loaded with alt URL:', urls[index]);
   };
   img.onerror = function () {
@@ -435,9 +459,9 @@ function tryAlternativeUrls(urls, index, title) {
 }
 
 function hidePoster() {
-  posterOverlay.classList.add('hidden');
-  posterTitle.classList.remove('show');
-  posterBadge.classList.remove('show');
+  if (posterOverlay) posterOverlay.classList.add('hidden');
+  if (posterTitle) posterTitle.classList.remove('show');
+  if (posterBadge) posterBadge.classList.remove('show');
 }
 
 // ============================================================
@@ -469,7 +493,7 @@ function buildYavidssProxyUrl(id) {
   return PROXY_SERVER + '/proxy?url=' + encodeURIComponent(targetUrl);
 }
 
-// Build a proxy URL for a Zeomeo file ID (e.g. "i732e81e40b6")
+// ★ FIX: the id MUST include the leading "i" (e.g. "i4a6fea779c2")
 function buildZeomeoProxyUrl(id) {
   const hlsUrl = ZEOMEO_BASE + '/files/' + id + '/master.m3u8';
   return (
@@ -544,19 +568,25 @@ const APIS = {
       if (id.indexOf('http') === 0) return id;
       return this.base + '/files/' + id + '/master.m3u8';
     },
+    // ★ FIX: zeomeo IDs are "i" + 11 lowercase hex chars.
+    //   - "i4a6fea779c2"               → true (bare file ID)
+    //   - "i732e81e40b6"               → true (bare file ID)
+    //   - "zeomeo:i4a6fea779c2"        → true (prefixed)
+    //   - full vid.zeomeo.com URL      → true
     detect: function (id) {
       if (!id) return false;
       if (id.indexOf('vid.zeomeo.com') !== -1) return true;
       if (id.indexOf('zeomeo:') === 0) return true;
-      return /^i[a-f0-9]{10,}$/i.test(id);
+      return /^i[a-f0-9]{8,}$/i.test(id);
     },
+    // ★ FIX: KEEP the leading "i". Do NOT strip it.
     extractId: function (id) {
       if (id.indexOf('vid.zeomeo.com') !== -1) {
         const m = id.match(/\/files\/([a-z0-9]+)\//i);
         return m ? m[1] : id;
       }
       if (id.indexOf('zeomeo:') === 0) return id.slice(7);
-      return id;
+      return id; // "i4a6fea779c2" stays as-is
     },
   },
 };
@@ -564,41 +594,41 @@ const APIS = {
 // ============================================================
 // DOM ELEMENTS
 // ============================================================
-const video = document.getElementById('videoPlayer');
-const videoSource = document.getElementById('videoSource');
-const loader = document.getElementById('loader');
-const errorState = document.getElementById('errorState');
-const ctrl = document.getElementById('controlsWrapper');
-const playBtn = document.getElementById('playBtn');
-const timeDisplay = document.getElementById('timeDisplay');
-const progressPlayed = document.getElementById('progressPlayed');
-const progressBuffered = document.getElementById('progressBuffered');
-const progressHandle = document.getElementById('progressHandle');
-const progressTooltip = document.getElementById('progressTooltip');
-const progressContainer = document.getElementById('progressContainer');
-const progressTrack = document.getElementById('progressTrack');
-const progressChapters = document.getElementById('progressChapters');
-const volumeSliderTrack = document.getElementById('volumeSliderTrack');
-const volumeFilled = document.getElementById('volumeFilled');
-const volumeHandle = document.getElementById('volumeHandle');
-const muteBtn = document.getElementById('muteBtn');
-const videoTitle = document.getElementById('videoTitle');
-const topBadge = document.getElementById('topBadge');
-const centerIndicator = document.getElementById('centerIndicator');
-const centerIcon = document.getElementById('centerIcon');
-const spinner = document.getElementById('bufferingSpinner');
-const volumeOverlay = document.getElementById('volumeOverlay');
-const volumeBars = document.getElementById('volumeBars');
-const volumeOverlayText = document.getElementById('volumeOverlayText');
-const toastContainer = document.getElementById('toastContainer');
-const speedGroup = document.getElementById('speedGroup');
-const speedBtn = document.getElementById('speedBtn');
-const speedMenu = document.getElementById('speedMenu');
-const pipBtn = document.getElementById('pipBtn');
-const fullscreenBtn = document.getElementById('fullscreenBtn');
-const skipBackBtn = document.getElementById('skipBackBtn');
-const skipFwdBtn = document.getElementById('skipFwdBtn');
-const playerContainer = document.getElementById('playerContainer');
+const video = $id('videoPlayer');
+const videoSource = $id('videoSource');
+const loader = $id('loader');
+const errorState = $id('errorState');
+const ctrl = $id('controlsWrapper');
+const playBtn = $id('playBtn');
+const timeDisplay = $id('timeDisplay');
+const progressPlayed = $id('progressPlayed');
+const progressBuffered = $id('progressBuffered');
+const progressHandle = $id('progressHandle');
+const progressTooltip = $id('progressTooltip');
+const progressContainer = $id('progressContainer');
+const progressTrack = $id('progressTrack');
+const progressChapters = $id('progressChapters');
+const volumeSliderTrack = $id('volumeSliderTrack');
+const volumeFilled = $id('volumeFilled');
+const volumeHandle = $id('volumeHandle');
+const muteBtn = $id('muteBtn');
+const videoTitle = $id('videoTitle');
+const topBadge = $id('topBadge');
+const centerIndicator = $id('centerIndicator');
+const centerIcon = $id('centerIcon');
+const spinner = $id('bufferingSpinner');
+const volumeOverlay = $id('volumeOverlay');
+const volumeBars = $id('volumeBars');
+const volumeOverlayText = $id('volumeOverlayText');
+const toastContainer = $id('toastContainer');
+const speedGroup = $id('speedGroup');
+const speedBtn = $id('speedBtn');
+const speedMenu = $id('speedMenu');
+const pipBtn = $id('pipBtn');
+const fullscreenBtn = $id('fullscreenBtn');
+const skipBackBtn = $id('skipBackBtn');
+const skipFwdBtn = $id('skipFwdBtn');
+const playerContainer = $id('playerContainer');
 
 // ============================================================
 // STATE
@@ -657,6 +687,7 @@ function isAnimeVideo(title) {
 }
 
 function showToast(message) {
+  if (!toastContainer) return;
   const toast = document.createElement('div');
   toast.className = 'toast';
   toast.textContent = message;
@@ -667,6 +698,7 @@ function showToast(message) {
 }
 
 function showCenterIcon(iconName) {
+  if (!centerIcon || !centerIndicator) return;
   centerIcon.innerHTML = ICONS[iconName] || '';
   centerIndicator.classList.remove('show');
   void centerIndicator.offsetWidth;
@@ -678,6 +710,7 @@ function showCenterIcon(iconName) {
 }
 
 function initVolumeBars() {
+  if (!volumeBars) return;
   for (let i = 0; i < 8; i++) {
     const bar = document.createElement('div');
     bar.className = 'volumeBars';
@@ -687,6 +720,7 @@ function initVolumeBars() {
 }
 
 function showVolumeOverlay() {
+  if (!volumeBars || !volumeOverlayText || !volumeOverlay) return;
   const vol = isMuted ? 0 : currentVolume;
   const activeBars = Math.round(vol * 8);
   const bars = volumeBars.children;
@@ -705,6 +739,7 @@ function showVolumeOverlay() {
 // UI UPDATES
 // ============================================================
 function updatePlayPause() {
+  if (!playBtn) return;
   if (isPlaying) {
     playBtn.innerHTML = iconHTML('pause');
     playBtn.setAttribute('aria-label', 'Pause');
@@ -715,6 +750,7 @@ function updatePlayPause() {
 }
 
 function updateVolumeUI() {
+  if (!muteBtn || !volumeFilled || !volumeHandle) return;
   const vol = isMuted ? 0 : currentVolume;
   muteBtn.innerHTML = iconHTML(getVolumeIcon(vol));
   volumeFilled.style.width = vol * 100 + '%';
@@ -722,6 +758,7 @@ function updateVolumeUI() {
 }
 
 function updateTimeDisplay() {
+  if (!timeDisplay || !video) return;
   const current = formatTime(video.currentTime);
   const total = formatTime(video.duration);
   timeDisplay.innerHTML =
@@ -733,14 +770,15 @@ function updateTimeDisplay() {
 }
 
 function updateProgress() {
-  if (isProgressDragging || !video.duration) return;
+  if (isProgressDragging || !video || !video.duration) return;
+  if (!progressPlayed || !progressHandle) return;
   const pct = (video.currentTime / video.duration) * 100;
   progressPlayed.style.width = pct + '%';
   progressHandle.style.left = pct + '%';
 }
 
 function updateBuffered() {
-  if (!video.duration) return;
+  if (!video || !video.duration || !progressBuffered) return;
   const buffered = video.buffered;
   if (buffered.length > 0) {
     const end = buffered.end(buffered.length - 1);
@@ -749,6 +787,7 @@ function updateBuffered() {
 }
 
 function updateFullscreenUI() {
+  if (!fullscreenBtn) return;
   if (isFullscreen) {
     fullscreenBtn.innerHTML = iconHTML('exitFullscreen');
     fullscreenBtn.setAttribute('aria-label', 'Exit fullscreen');
@@ -759,6 +798,7 @@ function updateFullscreenUI() {
 }
 
 function updateSpeedUI() {
+  if (!speedBtn || !speedMenu) return;
   speedBtn.textContent = currentSpeed === 1 ? '1x' : currentSpeed + 'x';
   const options = speedMenu.querySelectorAll('.speed-option');
   for (let i = 0; i < options.length; i++) {
@@ -770,17 +810,18 @@ function updateSpeedUI() {
 }
 
 function updatePiPUI() {
-  pipBtn.classList.toggle('active', isPip);
+  if (pipBtn) pipBtn.classList.toggle('active', isPip);
 }
 
 function updateSubsUI() {
-  subtitleBtn.classList.toggle('active', subsOn && !subsOff);
-  if (!subsOn || subsOff) {
+  if (subtitleBtn) subtitleBtn.classList.toggle('active', subsOn && !subsOff);
+  if ((!subsOn || subsOff) && subtitleDisplay) {
     subtitleDisplay.classList.remove('visible');
   }
 }
 
 function resetHideTimer() {
+  if (!playerContainer) return;
   playerContainer.classList.remove('hide-controls');
   clearTimeout(hideTimer);
   if (isPlaying) {
@@ -796,9 +837,10 @@ function resetHideTimer() {
 // SUBTITLE CONTROLS
 // ============================================================
 function turnOffSubtitles() {
-  const videoEl = document.getElementById('videoPlayer');
+  const videoEl = $id('videoPlayer');
+  if (!videoEl) return;
   const tracks = videoEl.querySelectorAll('track');
-  const items = subtitleListEl.querySelectorAll('.subtitle-item');
+  const items = subtitleListEl ? subtitleListEl.querySelectorAll('.subtitle-item') : [];
 
   tracks.forEach(function (t) {
     t.mode = 'hidden';
@@ -820,27 +862,30 @@ function turnOffSubtitles() {
     if (check) check.style.display = 'none';
   });
 
-  const offEl = subtitleListEl.querySelector('[data-index="-1"]');
+  const offEl = subtitleListEl ? subtitleListEl.querySelector('[data-index="-1"]') : null;
   if (offEl) {
     offEl.classList.add('active');
     const check = offEl.querySelector('.check');
     if (check) check.style.display = 'inline';
   }
 
-  subtitleContainer.style.display = 'none';
+  if (subtitleContainer) subtitleContainer.style.display = 'none';
   subsOn = false;
   subsOff = true;
-  subtitleDisplay.classList.remove('visible');
-  subtitleBtn.classList.remove('active');
-  subtitleDisplay.textContent = '';
+  if (subtitleDisplay) {
+    subtitleDisplay.classList.remove('visible');
+    subtitleDisplay.textContent = '';
+  }
+  if (subtitleBtn) subtitleBtn.classList.remove('active');
   console.log('📺 Subtitles turned OFF');
   showToast('Subtitles OFF');
 }
 
 function selectSubtitle(index) {
-  const videoEl = document.getElementById('videoPlayer');
+  const videoEl = $id('videoPlayer');
+  if (!videoEl) return;
   const tracks = videoEl.querySelectorAll('track');
-  const items = subtitleListEl.querySelectorAll('.subtitle-item');
+  const items = subtitleListEl ? subtitleListEl.querySelectorAll('.subtitle-item') : [];
 
   if (index === -1) {
     turnOffSubtitles();
@@ -886,8 +931,8 @@ function selectSubtitle(index) {
 
   subsOn = true;
   subsOff = false;
-  subtitleBtn.classList.add('active');
-  subtitleContainer.style.display = 'none';
+  if (subtitleBtn) subtitleBtn.classList.add('active');
+  if (subtitleContainer) subtitleContainer.style.display = 'none';
 
   setTimeout(function () {
     updateSubtitleFromTracks();
@@ -905,13 +950,15 @@ function toggleSubtitleMenu() {
     console.log('ℹ️ No subtitles loaded yet');
     return;
   }
+  if (!subtitleContainer) return;
   subtitleContainer.style.display =
     subtitleContainer.style.display === 'block' ? 'none' : 'block';
 }
 
 function toggleSubs() {
   if (subsOff || !subsOn) {
-    const tracks = document.getElementById('videoPlayer').querySelectorAll('track');
+    const videoEl = $id('videoPlayer');
+    const tracks = videoEl ? videoEl.querySelectorAll('track') : null;
     if (tracks && tracks.length > 0) {
       let idx = 0;
       for (let i = 0; i < tracks.length; i++) {
@@ -933,8 +980,10 @@ function triggerSubtitleFetch(title, isAnime) {
   const category = (currentCategory || '').toString().toLowerCase();
   if (category === 'korean' || category === 'korean-sub') {
     console.log('🚫 Skipping subtitles for category:', category);
-    subtitleBtn.style.display = 'none';
-    subtitleBtn.classList.remove('active');
+    if (subtitleBtn) {
+      subtitleBtn.style.display = 'none';
+      subtitleBtn.classList.remove('active');
+    }
     return false;
   }
   if (title) {
@@ -944,6 +993,7 @@ function triggerSubtitleFetch(title, isAnime) {
 }
 
 function updateSubtitleFromTracks() {
+  if (!video || !subtitleDisplay) return;
   const textTracks = video.textTracks;
   if (!textTracks || !subsOn || subsOff) {
     subtitleDisplay.classList.remove('visible');
@@ -1109,12 +1159,12 @@ function fetchMovieData(id) {
   });
 }
 
+// ★ FIX: yavidss BEFORE zeomeo, so 32-hex yavidss IDs never mis-route
 function detectSource(id) {
   if (!id) return SOURCE_TYPES.UNKNOWN;
 
-  // Zeomeo first — explicit, prefixed, or auto-detected ID
+  if (/^[A-F0-9]{32}$/.test(id)) return SOURCE_TYPES.YAVIDSS;
   if (APIS.zeomeo.detect(id)) return SOURCE_TYPES.ZEOMEO;
-
   if (isVepornId(id)) return SOURCE_TYPES.VEPORN;
 
   if (/[가-힣]/.test(id) || id.indexOf('-') !== -1) {
@@ -1131,10 +1181,18 @@ function detectSource(id) {
   return SOURCE_TYPES.UNKNOWN;
 }
 
+// ★ FIX: yavidss URL extraction BEFORE zeomeo detection
 function extractVideoId(input) {
   if (!input) return null;
 
-  // Zeomeo (full URL, prefixed, or bare ID)
+  // yavidss full URL → extract 32-hex
+  const yavMatch = input.match(/yavidssgood\.com\/([A-F0-9]{32})/i);
+  if (yavMatch) return yavMatch[1];
+
+  // bare 32-hex → yavidss
+  if (/^[A-F0-9]{32}$/.test(input)) return input;
+
+  // zeomeo (i-prefixed, prefixed, or full URL)
   if (APIS.zeomeo.detect(input)) {
     return APIS.zeomeo.extractId(input);
   }
@@ -1249,16 +1307,17 @@ function loadVideo(inputId) {
 
   // ── Zeomeo short-circuit ─────────────────────────────────
   if (APIS.zeomeo.detect(inputId)) {
+    // ★ FIX: extractId keeps the leading "i" → "i4a6fea779c2"
     const bareId = APIS.zeomeo.extractId(inputId);
     currentId = bareId;
     currentSource = SOURCE_TYPES.ZEOMEO;
 
-    loader.classList.add('on');
-    errorState.classList.remove('visible');
+    if (loader) loader.classList.add('on');
+    if (errorState) errorState.classList.remove('visible');
 
     if (history.pushState) {
       try {
-        const url = BASE_URL + '/?url=' + encodeURIComponent('zeomeo:' + bareId);
+        const url = BASE_URL + '?id=' + encodeURIComponent(bareId);
         window.history.pushState({ path: url }, '', url);
       } catch (e) {
         console.warn('Could not update URL state:', e.message);
@@ -1266,7 +1325,7 @@ function loadVideo(inputId) {
     }
 
     console.log('📡 Loading zeomeo HLS:', bareId);
-    loadVideoSource('zeomeo:' + bareId);
+    loadVideoSource(bareId);
     return;
   }
 
@@ -1288,12 +1347,12 @@ function loadVideo(inputId) {
 
     currentId = slug;
     currentSource = SOURCE_TYPES.VEPORN;
-    loader.classList.add('on');
-    errorState.classList.remove('visible');
+    if (loader) loader.classList.add('on');
+    if (errorState) errorState.classList.remove('visible');
 
     if (history.pushState) {
       try {
-        const url = BASE_URL + '/?url=' + encodeURIComponent(slug);
+        const url = BASE_URL + '?url=' + encodeURIComponent(slug);
         window.history.pushState({ path: url }, '', url);
       } catch (e) {
         console.warn('Could not update URL state:', e.message);
@@ -1326,12 +1385,12 @@ function loadVideo(inputId) {
   if (isKoreanOrDash) {
     currentId = inputId;
     currentSource = SOURCE_TYPES.UNKNOWN;
-    loader.classList.add('on');
-    errorState.classList.remove('visible');
+    if (loader) loader.classList.add('on');
+    if (errorState) errorState.classList.remove('visible');
 
     if (history.pushState) {
       try {
-        const url = BASE_URL + '/?url=' + encodeURIComponent(inputId);
+        const url = BASE_URL + '?url=' + encodeURIComponent(inputId);
         window.history.pushState({ path: url }, '', url);
       } catch (e) {
         console.warn('Could not update URL state:', e.message);
@@ -1355,11 +1414,13 @@ function loadVideo(inputId) {
               const isAnime = isAnimeVideo(data.title) || currentCategory === 'anime';
               triggerSubtitleFetch(data.title, isAnime);
             }
-            videoSource.src = proxied;
-            videoSource.type = 'application/vnd.apple.mpegurl';
-            video.load();
+            if (videoSource) {
+              videoSource.src = proxied;
+              videoSource.type = 'application/vnd.apple.mpegurl';
+            }
+            if (video) video.load();
             videoLoaded = true;
-            loader.classList.remove('on');
+            if (loader) loader.classList.remove('on');
             hideLoading();
             return;
           }
@@ -1386,11 +1447,13 @@ function loadVideo(inputId) {
         }
 
         if (iframeUrl) {
-          videoSource.src = iframeUrl;
-          videoSource.type = 'video/mp4';
-          video.load();
+          if (videoSource) {
+            videoSource.src = iframeUrl;
+            videoSource.type = 'video/mp4';
+          }
+          if (video) video.load();
           videoLoaded = true;
-          loader.classList.remove('on');
+          if (loader) loader.classList.remove('on');
           hideLoading();
         } else {
           loadVideoSource(inputId);
@@ -1409,12 +1472,12 @@ function loadVideo(inputId) {
     console.log('📌 Numeric ID detected:', inputId);
     currentId = inputId;
     currentSource = SOURCE_TYPES.BAMBERRY;
-    loader.classList.add('on');
-    errorState.classList.remove('visible');
+    if (loader) loader.classList.add('on');
+    if (errorState) errorState.classList.remove('visible');
 
     if (history.pushState) {
       try {
-        const url = BASE_URL + 'p/embed.html?id=' + encodeURIComponent(inputId);
+        const url = BASE_URL + '?id=' + encodeURIComponent(inputId);
         window.history.pushState({ path: url }, '', url);
       } catch (e) {
         console.warn('Could not update URL state:', e.message);
@@ -1436,11 +1499,13 @@ function loadVideo(inputId) {
               const isAnime = isAnimeVideo(movie.title) || currentCategory === 'anime';
               triggerSubtitleFetch(movie.title, isAnime);
             }
-            videoSource.src = proxied;
-            videoSource.type = 'application/vnd.apple.mpegurl';
-            video.load();
+            if (videoSource) {
+              videoSource.src = proxied;
+              videoSource.type = 'application/vnd.apple.mpegurl';
+            }
+            if (video) video.load();
             videoLoaded = true;
-            loader.classList.remove('on');
+            if (loader) loader.classList.remove('on');
             hideLoading();
             return;
           }
@@ -1478,27 +1543,31 @@ function loadVideo(inputId) {
                 /yavidssgood\.com\/([A-F0-9]{32})/i
               );
               if (match) {
-                videoSource.src = buildYavidssProxyUrl(match[1]);
-                videoSource.type = 'application/vnd.apple.mpegurl';
+                if (videoSource) {
+                  videoSource.src = buildYavidssProxyUrl(match[1]);
+                  videoSource.type = 'application/vnd.apple.mpegurl';
+                }
               } else {
-                videoSource.src = movie.iframe_url;
+                if (videoSource) videoSource.src = movie.iframe_url;
               }
             } else {
-              videoSource.src = movie.iframe_url;
+              if (videoSource) videoSource.src = movie.iframe_url;
             }
-            video.load();
+            if (video) video.load();
             videoLoaded = true;
-            loader.classList.remove('on');
+            if (loader) loader.classList.remove('on');
             hideLoading();
           } else {
             loadVideoFromWorker(inputId, SOURCE_TYPES.BAMBERRY)
               .then(function (result) {
                 console.log('Got video from worker:', result);
-                videoSource.src = result.url;
-                videoSource.type = result.type || 'video/mp4';
-                video.load();
+                if (videoSource) {
+                  videoSource.src = result.url;
+                  videoSource.type = result.type || 'video/mp4';
+                }
+                if (video) video.load();
                 videoLoaded = true;
-                loader.classList.remove('on');
+                if (loader) loader.classList.remove('on');
                 hideLoading();
               })
               .catch(function (err) {
@@ -1519,11 +1588,13 @@ function loadVideo(inputId) {
               const isAnime = isAnimeVideo(result.title) || currentCategory === 'anime';
               triggerSubtitleFetch(result.title, isAnime);
             }
-            videoSource.src = result.url;
-            videoSource.type = result.type || 'video/mp4';
-            video.load();
+            if (videoSource) {
+              videoSource.src = result.url;
+              videoSource.type = result.type || 'video/mp4';
+            }
+            if (video) video.load();
             videoLoaded = true;
-            loader.classList.remove('on');
+            if (loader) loader.classList.remove('on');
             hideLoading();
           })
           .catch(function (err) {
@@ -1541,11 +1612,13 @@ function loadVideo(inputId) {
               const isAnime = isAnimeVideo(result.title) || currentCategory === 'anime';
               triggerSubtitleFetch(result.title, isAnime);
             }
-            videoSource.src = result.url;
-            videoSource.type = result.type || 'video/mp4';
-            video.load();
+            if (videoSource) {
+              videoSource.src = result.url;
+              videoSource.type = result.type || 'video/mp4';
+            }
+            if (video) video.load();
             videoLoaded = true;
-            loader.classList.remove('on');
+            if (loader) loader.classList.remove('on');
             hideLoading();
           })
           .catch(function (err) {
@@ -1567,12 +1640,12 @@ function loadVideo(inputId) {
 
   currentId = extractedId;
   currentSource = detectSource(extractedId);
-  loader.classList.add('on');
-  errorState.classList.remove('visible');
+  if (loader) loader.classList.add('on');
+  if (errorState) errorState.classList.remove('visible');
 
   if (history.pushState) {
     try {
-      const url = BASE_URL + '/?url=' + extractedId;
+      const url = BASE_URL + '?url=' + encodeURIComponent(extractedId);
       window.history.pushState({ path: url }, '', url);
     } catch (e) {
       console.warn('Could not update URL state:', e.message);
@@ -1596,11 +1669,13 @@ function loadVideo(inputId) {
             const isAnime = isAnimeVideo(data.title) || currentCategory === 'anime';
             triggerSubtitleFetch(data.title, isAnime);
           }
-          videoSource.src = proxied;
-          videoSource.type = 'application/vnd.apple.mpegurl';
-          video.load();
+          if (videoSource) {
+            videoSource.src = proxied;
+            videoSource.type = 'application/vnd.apple.mpegurl';
+          }
+          if (video) video.load();
           videoLoaded = true;
-          loader.classList.remove('on');
+          if (loader) loader.classList.remove('on');
           hideLoading();
           return;
         }
@@ -1627,11 +1702,13 @@ function loadVideo(inputId) {
       }
 
       if (iframeUrl) {
-        videoSource.src = iframeUrl;
-        videoSource.type = 'video/mp4';
-        video.load();
+        if (videoSource) {
+          videoSource.src = iframeUrl;
+          videoSource.type = 'video/mp4';
+        }
+        if (video) video.load();
         videoLoaded = true;
-        loader.classList.remove('on');
+        if (loader) loader.classList.remove('on');
         hideLoading();
       } else {
         loadVideoSource(extractedId);
@@ -1648,7 +1725,7 @@ function loadVideo(inputId) {
 // ============================================================
 function loadVepornVideo(slug) {
   console.log('🔄 Loading veporn video for slug:', slug);
-  loader.classList.add('on');
+  if (loader) loader.classList.add('on');
 
   fetchVepornVideo(slug)
     .then(function (result) {
@@ -1658,16 +1735,18 @@ function loadVepornVideo(slug) {
         const isAnime = isAnimeVideo(result.title) || currentCategory === 'anime';
         triggerSubtitleFetch(result.title, isAnime);
       }
-      videoSource.src = result.url;
-      videoSource.type = 'video/mp4';
-      video.load();
+      if (videoSource) {
+        videoSource.src = result.url;
+        videoSource.type = 'video/mp4';
+      }
+      if (video) video.load();
       videoLoaded = true;
-      loader.classList.remove('on');
+      if (loader) loader.classList.remove('on');
       hideLoading();
     })
     .catch(function (err) {
       console.error('❌ Failed to load veporn video:', err.message);
-      loader.classList.remove('on');
+      if (loader) loader.classList.remove('on');
       hideLoading();
       showIframeFallback('https://veporn.com/' + slug);
     });
@@ -1677,35 +1756,41 @@ function loadVepornVideo(slug) {
 // VIDEO SOURCE LOADER
 // ============================================================
 function loadVideoSource(id) {
+  // ★ FIX: yavidss 32-hex takes priority over zeomeo
+  if (/^[A-F0-9]{32}$/i.test(id)) {
+    currentSource = SOURCE_TYPES.YAVIDSS;
+    const proxied = buildYavidssProxyUrl(id);
+    console.log('📡 Loading yavidss via proxy server:', proxied);
+    if (videoSource) {
+      videoSource.src = proxied;
+      videoSource.type = 'application/vnd.apple.mpegurl';
+      videoSource.removeAttribute('type');
+      videoSource.setAttribute('type', 'application/vnd.apple.mpegurl');
+    }
+    if (video) video.load();
+    videoLoaded = true;
+    if (loader) loader.classList.remove('on');
+    hideLoading();
+    return;
+  }
+
   // ── Zeomeo HLS ───────────────────────────────────────────
   if (currentSource === SOURCE_TYPES.ZEOMEO || APIS.zeomeo.detect(id)) {
     currentSource = SOURCE_TYPES.ZEOMEO;
 
+    // ★ FIX: keep the leading "i"
     const bareId = APIS.zeomeo.extractId(id);
     const proxied = buildZeomeoProxyUrl(bareId);
 
     console.log('📡 Loading zeomeo HLS via proxy:', proxied);
 
-    videoSource.src = proxied;
-    videoSource.type = 'application/vnd.apple.mpegurl';
-    video.load();
+    if (videoSource) {
+      videoSource.src = proxied;
+      videoSource.type = 'application/vnd.apple.mpegurl';
+    }
+    if (video) video.load();
     videoLoaded = true;
-    loader.classList.remove('on');
-    hideLoading();
-    return;
-  }
-
-  if (/^[A-F0-9]{32}$/i.test(id)) {
-    currentSource = SOURCE_TYPES.YAVIDSS;
-    const proxied = buildYavidssProxyUrl(id);
-    console.log('📡 Loading yavidss via proxy server:', proxied);
-    videoSource.src = proxied;
-    videoSource.type = 'application/vnd.apple.mpegurl';
-    videoSource.removeAttribute('type');
-    videoSource.setAttribute('type', 'application/vnd.apple.mpegurl');
-    video.load();
-    videoLoaded = true;
-    loader.classList.remove('on');
+    if (loader) loader.classList.remove('on');
     hideLoading();
     return;
   }
@@ -1713,27 +1798,31 @@ function loadVideoSource(id) {
   if (currentSource === SOURCE_TYPES.BAMBERRY) {
     const api = APIS[currentSource];
     const builtUrl = api.buildUrl(id);
-    videoSource.src =
-      WORKER_URL + '/proxy?url=' + encodeURIComponent(builtUrl);
-    video.load();
+    if (videoSource) {
+      videoSource.src =
+        WORKER_URL + '/proxy?url=' + encodeURIComponent(builtUrl);
+    }
+    if (video) video.load();
     videoLoaded = true;
-    loader.classList.remove('on');
+    if (loader) loader.classList.remove('on');
     hideLoading();
   } else if (currentSource === SOURCE_TYPES.YAVIDSS) {
     const proxied = buildYavidssProxyUrl(id);
-    videoSource.src = proxied;
-    video.load();
+    if (videoSource) videoSource.src = proxied;
+    if (video) video.load();
     videoLoaded = true;
-    loader.classList.remove('on');
+    if (loader) loader.classList.remove('on');
     hideLoading();
   } else if (currentSource === SOURCE_TYPES.VEPORN) {
     loadVepornVideo(id);
   } else if (id.indexOf('https://') === 0 || id.indexOf('http://') === 0) {
-    videoSource.src =
-      WORKER_URL + '/proxy?url=' + encodeURIComponent(id);
-    video.load();
+    if (videoSource) {
+      videoSource.src =
+        WORKER_URL + '/proxy?url=' + encodeURIComponent(id);
+    }
+    if (video) video.load();
     videoLoaded = true;
-    loader.classList.remove('on');
+    if (loader) loader.classList.remove('on');
     hideLoading();
   } else {
     hideLoading();
@@ -1745,8 +1834,8 @@ function loadVideoSource(id) {
 // IFRAME FALLBACK
 // ============================================================
 function showIframeFallback(url) {
-  video.style.display = 'none';
-  loader.classList.remove('on');
+  if (video) video.style.display = 'none';
+  if (loader) loader.classList.remove('on');
   hideLoading();
   hidePoster();
 
@@ -1759,7 +1848,8 @@ function showIframeFallback(url) {
   iframe.allow = 'autoplay; encrypted-media; fullscreen';
   iframe.allowFullscreen = true;
 
-  const container = document.getElementById('playerContainer');
+  const container = $id('playerContainer');
+  if (!container) return;
   const oldIframe = container.querySelector('iframe');
   if (oldIframe) oldIframe.remove();
 
@@ -1771,9 +1861,10 @@ function showIframeFallback(url) {
 // PLAYBACK CONTROLS
 // ============================================================
 function startPlayback() {
-  loader.classList.remove('on');
+  if (loader) loader.classList.remove('on');
   hideLoading();
   hidePoster();
+  if (!video) return;
   video
     .play()
     .then(function () {
@@ -1790,13 +1881,16 @@ function retryLoad() {
 }
 
 function showError(message) {
-  errorState.querySelector('p').textContent = message || 'Failed to load video';
+  if (!errorState) return;
+  const p = errorState.querySelector('p');
+  if (p) p.textContent = message || 'Failed to load video';
   errorState.classList.add('visible');
-  loader.classList.remove('on');
+  if (loader) loader.classList.remove('on');
   hideLoading();
 }
 
 function togglePlay() {
+  if (!video) return;
   if (video.paused) {
     video.play();
     hidePoster();
@@ -1807,6 +1901,7 @@ function togglePlay() {
 }
 
 function skip(seconds) {
+  if (!video) return;
   video.currentTime = clamp(
     video.currentTime + seconds,
     0,
@@ -1818,6 +1913,7 @@ function skip(seconds) {
 }
 
 function toggleMute() {
+  if (!video) return;
   if (isMuted) {
     isMuted = false;
     video.muted = false;
@@ -1835,6 +1931,7 @@ function toggleMute() {
 }
 
 function toggleFullscreen() {
+  if (!playerContainer) return;
   if (isFullscreen) {
     (document.exitFullscreen || document.webkitExitFullscreen).call(document);
   } else {
@@ -1846,6 +1943,7 @@ function toggleFullscreen() {
 }
 
 async function togglePiP() {
+  if (!video) return;
   try {
     if (isPip) {
       await document.exitPictureInPicture();
@@ -1859,28 +1957,30 @@ async function togglePiP() {
 
 function setSpeed(speed) {
   currentSpeed = speed;
-  video.playbackRate = speed;
+  if (video) video.playbackRate = speed;
   updateSpeedUI();
   showToast('Speed: ' + (speed === 1 ? 'Normal' : speed + 'x'));
 }
 
 function toggleSpeedMenu() {
   speedMenuOpen = !speedMenuOpen;
-  speedMenu.classList.toggle('open', speedMenuOpen);
+  if (speedMenu) speedMenu.classList.toggle('open', speedMenuOpen);
   resetHideTimer();
 }
 
 function seekFromEvent(e) {
+  if (!progressTrack || !video) return 0;
   const rect = progressTrack.getBoundingClientRect();
   const ratio = clamp((e.clientX - rect.left) / rect.width, 0, 1);
   const time = ratio * video.duration;
   video.currentTime = time;
-  progressPlayed.style.width = ratio * 100 + '%';
-  progressHandle.style.left = ratio * 100 + '%';
+  if (progressPlayed) progressPlayed.style.width = ratio * 100 + '%';
+  if (progressHandle) progressHandle.style.left = ratio * 100 + '%';
   return ratio;
 }
 
 function updateProgressTooltip(e) {
+  if (!progressTrack || !progressTooltip || !video) return;
   const rect = progressTrack.getBoundingClientRect();
   const ratio = clamp((e.clientX - rect.left) / rect.width, 0, 1);
   const time = ratio * (video.duration || 0);
@@ -1889,6 +1989,7 @@ function updateProgressTooltip(e) {
 }
 
 function volumeFromEvent(e) {
+  if (!volumeSliderTrack) return;
   const rect = volumeSliderTrack.getBoundingClientRect();
   const vol = clamp((e.clientX - rect.left) / rect.width, 0, 1);
   setVolume(vol);
@@ -1897,8 +1998,8 @@ function volumeFromEvent(e) {
 function setVolume(vol) {
   vol = clamp(vol, 0, 1);
   currentVolume = vol;
-  video.volume = vol;
-  if (vol > 0 && isMuted) {
+  if (video) video.volume = vol;
+  if (vol > 0 && isMuted && video) {
     isMuted = false;
     video.muted = false;
   }
@@ -1911,6 +2012,7 @@ function setVolume(vol) {
 // CHAPTERS
 // ============================================================
 function renderChapters(chapters) {
+  if (!progressChapters || !video) return;
   progressChapters.innerHTML = '';
   if (!video.duration) return;
   for (let i = 0; i < chapters.length; i++) {
@@ -1924,146 +2026,157 @@ function renderChapters(chapters) {
 // ============================================================
 // VIDEO EVENT LISTENERS
 // ============================================================
-video.addEventListener('play', function () {
-  isPlaying = true;
-  updatePlayPause();
-  resetHideTimer();
-  loader.classList.remove('on');
-  hideLoading();
-  errorState.classList.remove('visible');
-  hidePoster();
-});
+if (video) {
+  video.addEventListener('play', function () {
+    isPlaying = true;
+    updatePlayPause();
+    resetHideTimer();
+    if (loader) loader.classList.remove('on');
+    hideLoading();
+    if (errorState) errorState.classList.remove('visible');
+    hidePoster();
+  });
 
-video.addEventListener('pause', function () {
-  isPlaying = false;
-  updatePlayPause();
-  playerContainer.classList.remove('hide-controls');
-  clearTimeout(hideTimer);
-});
+  video.addEventListener('pause', function () {
+    isPlaying = false;
+    updatePlayPause();
+    if (playerContainer) playerContainer.classList.remove('hide-controls');
+    clearTimeout(hideTimer);
+  });
 
-video.addEventListener('ended', function () {
-  isPlaying = false;
-  updatePlayPause();
-  playerContainer.classList.remove('hide-controls');
-});
+  video.addEventListener('ended', function () {
+    isPlaying = false;
+    updatePlayPause();
+    if (playerContainer) playerContainer.classList.remove('hide-controls');
+  });
 
-video.addEventListener('timeupdate', function () {
-  updateProgress();
-  updateTimeDisplay();
-  updateSubtitleFromTracks();
-});
+  video.addEventListener('timeupdate', function () {
+    updateProgress();
+    updateTimeDisplay();
+    updateSubtitleFromTracks();
+  });
 
-video.addEventListener('progress', updateBuffered);
+  video.addEventListener('progress', updateBuffered);
 
-video.addEventListener('loadedmetadata', function () {
-  updateTimeDisplay();
-  if (currentMovieData && currentMovieData.title) {
-    videoTitle.textContent = currentMovieData.title;
-  }
-  if (currentMovieData && currentMovieData.chapters) {
-    renderChapters(currentMovieData.chapters);
-  }
-});
-
-video.addEventListener('waiting', function () {
-  spinner.classList.add('show');
-});
-
-video.addEventListener('canplay', function () {
-  spinner.classList.remove('show');
-});
-
-video.addEventListener('playing', function () {
-  spinner.classList.remove('show');
-});
-
-video.addEventListener('error', function () {
-  spinner.classList.remove('show');
-  let message = 'Failed to load video';
-  if (video.error) {
-    switch (video.error.code) {
-      case 1:
-        message = 'Video loading aborted';
-        break;
-      case 2:
-        message = 'Network error - check your connection';
-        break;
-      case 3:
-        message = 'Video decoding error';
-        break;
-      case 4:
-        message = 'Video format not supported';
-        break;
+  video.addEventListener('loadedmetadata', function () {
+    updateTimeDisplay();
+    if (currentMovieData && currentMovieData.title && videoTitle) {
+      videoTitle.textContent = currentMovieData.title;
     }
-  }
-  showError(message);
-  loader.classList.remove('on');
-  hideLoading();
-});
+    if (currentMovieData && currentMovieData.chapters) {
+      renderChapters(currentMovieData.chapters);
+    }
+  });
 
-video.addEventListener('volumechange', function () {
-  updateVolumeUI();
-});
+  video.addEventListener('waiting', function () {
+    if (spinner) spinner.classList.add('show');
+  });
+
+  video.addEventListener('canplay', function () {
+    if (spinner) spinner.classList.remove('show');
+  });
+
+  video.addEventListener('playing', function () {
+    if (spinner) spinner.classList.remove('show');
+  });
+
+  video.addEventListener('error', function () {
+    if (spinner) spinner.classList.remove('show');
+    let message = 'Failed to load video';
+    if (video.error) {
+      switch (video.error.code) {
+        case 1:
+          message = 'Video loading aborted';
+          break;
+        case 2:
+          message = 'Network error - check your connection';
+          break;
+        case 3:
+          message = 'Video decoding error';
+          break;
+        case 4:
+          message = 'Video format not supported';
+          break;
+      }
+    }
+    showError(message);
+    if (loader) loader.classList.remove('on');
+    hideLoading();
+  });
+
+  video.addEventListener('volumechange', function () {
+    updateVolumeUI();
+  });
+}
 
 // ============================================================
 // CONTROL BUTTON LISTENERS
 // ============================================================
-playBtn.addEventListener('click', function (e) {
-  e.stopPropagation();
-  togglePlay();
-});
+if (playBtn)
+  playBtn.addEventListener('click', function (e) {
+    e.stopPropagation();
+    togglePlay();
+  });
 
-skipBackBtn.addEventListener('click', function (e) {
-  e.stopPropagation();
-  skip(-10);
-});
+if (skipBackBtn)
+  skipBackBtn.addEventListener('click', function (e) {
+    e.stopPropagation();
+    skip(-10);
+  });
 
-skipFwdBtn.addEventListener('click', function (e) {
-  e.stopPropagation();
-  skip(10);
-});
+if (skipFwdBtn)
+  skipFwdBtn.addEventListener('click', function (e) {
+    e.stopPropagation();
+    skip(10);
+  });
 
-muteBtn.addEventListener('click', function (e) {
-  e.stopPropagation();
-  toggleMute();
-});
+if (muteBtn)
+  muteBtn.addEventListener('click', function (e) {
+    e.stopPropagation();
+    toggleMute();
+  });
 
-subtitleBtn.addEventListener('click', function (e) {
-  e.stopPropagation();
-  if (!subtitleTracksLoaded) {
-    showToast('No subtitles available');
-    return;
-  }
-  toggleSubtitleMenu();
-});
+if (subtitleBtn)
+  subtitleBtn.addEventListener('click', function (e) {
+    e.stopPropagation();
+    if (!subtitleTracksLoaded) {
+      showToast('No subtitles available');
+      return;
+    }
+    toggleSubtitleMenu();
+  });
 
-pipBtn.addEventListener('click', function (e) {
-  e.stopPropagation();
-  togglePiP();
-});
+if (pipBtn)
+  pipBtn.addEventListener('click', function (e) {
+    e.stopPropagation();
+    togglePiP();
+  });
 
-fullscreenBtn.addEventListener('click', function (e) {
-  e.stopPropagation();
-  toggleFullscreen();
-});
+if (fullscreenBtn)
+  fullscreenBtn.addEventListener('click', function (e) {
+    e.stopPropagation();
+    toggleFullscreen();
+  });
 
-speedBtn.addEventListener('click', function (e) {
-  e.stopPropagation();
-  toggleSpeedMenu();
-});
+if (speedBtn)
+  speedBtn.addEventListener('click', function (e) {
+    e.stopPropagation();
+    toggleSpeedMenu();
+  });
 
 // Progress bar
-progressContainer.addEventListener('mousedown', function (e) {
-  if (e.target.matches('.chapter')) return;
-  isProgressDragging = true;
-  progressContainer.classList.add('dragging');
-  seekFromEvent(e);
-  resetHideTimer();
-});
+if (progressContainer)
+  progressContainer.addEventListener('mousedown', function (e) {
+    if (e.target.matches('.chapter')) return;
+    isProgressDragging = true;
+    progressContainer.classList.add('dragging');
+    seekFromEvent(e);
+    resetHideTimer();
+  });
 
 document.addEventListener('mousemove', function (e) {
   if (isProgressDragging) seekFromEvent(e);
-  if (progressContainer.matches(':hover') || isProgressDragging) {
+  if (progressContainer && (progressContainer.matches(':hover') || isProgressDragging)) {
     updateProgressTooltip(e);
   }
 });
@@ -2071,17 +2184,19 @@ document.addEventListener('mousemove', function (e) {
 document.addEventListener('mouseup', function () {
   if (isProgressDragging) {
     isProgressDragging = false;
-    progressContainer.classList.remove('dragging');
+    if (progressContainer) progressContainer.classList.remove('dragging');
     resetHideTimer();
   }
 });
 
 // Volume slider
-volumeSliderTrack.addEventListener('mousedown', function (e) {
-  isVolumeDragging = true;
-  document.getElementById('volumeSliderWrap').classList.add('show');
-  volumeFromEvent(e);
-});
+if (volumeSliderTrack)
+  volumeSliderTrack.addEventListener('mousedown', function (e) {
+    isVolumeDragging = true;
+    const wrap = $id('volumeSliderWrap');
+    if (wrap) wrap.classList.add('show');
+    volumeFromEvent(e);
+  });
 
 document.addEventListener('mousemove', function (e) {
   if (isVolumeDragging) volumeFromEvent(e);
@@ -2090,63 +2205,67 @@ document.addEventListener('mousemove', function (e) {
 document.addEventListener('mouseup', function () {
   if (isVolumeDragging) {
     isVolumeDragging = false;
-    document.getElementById('volumeSliderWrap').classList.remove('show');
+    const wrap = $id('volumeSliderWrap');
+    if (wrap) wrap.classList.remove('show');
   }
 });
 
 // Close speed menu
 document.addEventListener('click', function (e) {
-  if (speedMenuOpen && !speedGroup.contains(e.target)) {
+  if (speedMenuOpen && speedGroup && !speedGroup.contains(e.target)) {
     speedMenuOpen = false;
-    speedMenu.classList.remove('open');
+    if (speedMenu) speedMenu.classList.remove('open');
   }
 });
 
 // Player container click (play/pause + double-click skip)
-playerContainer.addEventListener('click', function (e) {
-  if (
-    e.target.matches('.speed-menu') ||
-    e.target.matches('.speed-menu') ||
-    e.target.matches('.volumeSliderWrap')
-  ) {
-    return;
-  }
-
-  if (clickTimer) {
-    clearTimeout(clickTimer);
-    clickTimer = null;
-
-    const rect = playerContainer.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-
-    if (x < rect.width / 2) {
-      skip(-10);
-    } else {
-      skip(10);
+if (playerContainer)
+  playerContainer.addEventListener('click', function (e) {
+    if (
+      e.target.matches('.speed-menu') ||
+      e.target.matches('.speed-menu') ||
+      e.target.matches('.volumeSliderWrap')
+    ) {
+      return;
     }
-  } else {
-    clickTimer = setTimeout(function () {
+
+    if (clickTimer) {
+      clearTimeout(clickTimer);
       clickTimer = null;
-      togglePlay();
-      showCenterIcon(isPlaying ? 'pause' : 'play');
-    }, 250);
-  }
-});
 
-playerContainer.addEventListener('mousemove', function () {
-  resetHideTimer();
-});
+      const rect = playerContainer.getBoundingClientRect();
+      const x = e.clientX - rect.left;
 
-playerContainer.addEventListener('mouseleave', function () {
-  if (isPlaying) {
-    clearTimeout(hideTimer);
-    hideTimer = setTimeout(function () {
-      if (!speedMenuOpen) {
-        playerContainer.classList.add('hide-controls');
+      if (x < rect.width / 2) {
+        skip(-10);
+      } else {
+        skip(10);
       }
-    }, 800);
-  }
-});
+    } else {
+      clickTimer = setTimeout(function () {
+        clickTimer = null;
+        togglePlay();
+        showCenterIcon(isPlaying ? 'pause' : 'play');
+      }, 250);
+    }
+  });
+
+if (playerContainer)
+  playerContainer.addEventListener('mousemove', function () {
+    resetHideTimer();
+  });
+
+if (playerContainer)
+  playerContainer.addEventListener('mouseleave', function () {
+    if (isPlaying) {
+      clearTimeout(hideTimer);
+      hideTimer = setTimeout(function () {
+        if (!speedMenuOpen) {
+          playerContainer.classList.add('hide-controls');
+        }
+      }, 800);
+    }
+  });
 
 // Fullscreen change
 document.addEventListener('fullscreenchange', function () {
@@ -2160,15 +2279,17 @@ document.addEventListener('webkitfullscreenchange', function () {
 });
 
 // PiP events
-video.addEventListener('enterpictureinpicture', function () {
-  isPip = true;
-  updatePiPUI();
-});
+if (video) {
+  video.addEventListener('enterpictureinpicture', function () {
+    isPip = true;
+    updatePiPUI();
+  });
 
-video.addEventListener('leavepictureinpicture', function () {
-  isPip = false;
-  updatePiPUI();
-});
+  video.addEventListener('leavepictureinpicture', function () {
+    isPip = false;
+    updatePiPUI();
+  });
+}
 
 // ============================================================
 // KEYBOARD SHORTCUTS
@@ -2236,26 +2357,28 @@ document.addEventListener('keydown', function (e) {
 // ============================================================
 // SPEED MENU OPTIONS
 // ============================================================
-speedSteps.forEach(function (speed) {
-  const option = document.createElement('div');
-  option.className = 'speed-option' + (speed === 1 ? ' active' : '');
-  option.dataset.speed = speed;
-  option.setAttribute('role', 'menuitem');
-  option.innerHTML = (speed === 1 ? 'Normal' : speed + 'x') + '</span>';
-  option.addEventListener('click', function (e) {
-    e.stopPropagation();
-    setSpeed(speed);
-    speedMenuOpen = false;
-    speedMenu.classList.remove('open');
-    resetHideTimer();
+if (speedMenu) {
+  speedSteps.forEach(function (speed) {
+    const option = document.createElement('div');
+    option.className = 'speed-option' + (speed === 1 ? ' active' : '');
+    option.dataset.speed = speed;
+    option.setAttribute('role', 'menuitem');
+    option.innerHTML = (speed === 1 ? 'Normal' : speed + 'x') + '</span>';
+    option.addEventListener('click', function (e) {
+      e.stopPropagation();
+      setSpeed(speed);
+      speedMenuOpen = false;
+      speedMenu.classList.remove('open');
+      resetHideTimer();
+    });
+    speedMenu.appendChild(option);
   });
-  speedMenu.appendChild(option);
-});
+}
 
 // ============================================================
 // INIT
 // ============================================================
-if (!document.pictureInPictureEnabled) {
+if (!document.pictureInPictureEnabled && pipBtn) {
   pipBtn.style.display = 'none';
 }
 
@@ -2266,7 +2389,7 @@ updateFullscreenUI();
 updateSubsUI();
 updatePiPUI();
 updateSpeedUI();
-video.volume = currentVolume;
+if (video) video.volume = currentVolume;
 
 // ============================================================
 // INIT FROM URL
@@ -2275,14 +2398,7 @@ function initFromUrl() {
   detectMode();
   const params = new URLSearchParams(window.location.search);
 
-  // Quick test: ?src=zeomeo&id=i732e81e40b6
-  if (params.get('src') === 'zeomeo') {
-    const zid = params.get('id') || 'i732e81e40b6';
-    loadVideo('zeomeo:' + zid);
-    return;
-  }
-
-  const id = params.get('id');
+  const id = params.get('id') || params.get('url');
   if (id) {
     loadVideo(id);
   } else {
