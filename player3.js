@@ -486,23 +486,18 @@ const USE_WORKER = true;
 
 // ── Custom HLS source: vid.zeomeo.com ──────────────────────
 const ZEOMEO_BASE = 'https://vid.zeomeo.com';
-const ZEOMEO_REFERER = 'https://vid.zeomeo.com/';
 
 function buildYavidssProxyUrl(id) {
   const targetUrl = 'https://yavidssgood.com/' + id + '/items1.m3u8';
   return PROXY_SERVER + '/proxy?url=' + encodeURIComponent(targetUrl);
 }
 
-// ★ FIX: the id MUST include the leading "i" (e.g. "i4a6fea779c2")
+// ★ FIX: use the working root route `/?url=` (NOT `/proxy?url=`),
+//   and drop the `&referer=` param — the proxy auto-applies
+//   `Referer: https://main.yagall.site/` for *.zeomeo.com.
 function buildZeomeoProxyUrl(id) {
   const hlsUrl = ZEOMEO_BASE + '/files/' + id + '/master.m3u8';
-  return (
-    PROXY_SERVER +
-    '/proxy?url=' +
-    encodeURIComponent(hlsUrl) +
-    '&referer=' +
-    encodeURIComponent(ZEOMEO_REFERER)
-  );
+  return PROXY_SERVER + '/?url=' + encodeURIComponent(hlsUrl);
 }
 
 // ============================================================
@@ -568,25 +563,19 @@ const APIS = {
       if (id.indexOf('http') === 0) return id;
       return this.base + '/files/' + id + '/master.m3u8';
     },
-    // ★ FIX: zeomeo IDs are "i" + 11 lowercase hex chars.
-    //   - "i4a6fea779c2"               → true (bare file ID)
-    //   - "i732e81e40b6"               → true (bare file ID)
-    //   - "zeomeo:i4a6fea779c2"        → true (prefixed)
-    //   - full vid.zeomeo.com URL      → true
     detect: function (id) {
       if (!id) return false;
       if (id.indexOf('vid.zeomeo.com') !== -1) return true;
       if (id.indexOf('zeomeo:') === 0) return true;
       return /^i[a-f0-9]{8,}$/i.test(id);
     },
-    // ★ FIX: KEEP the leading "i". Do NOT strip it.
     extractId: function (id) {
       if (id.indexOf('vid.zeomeo.com') !== -1) {
         const m = id.match(/\/files\/([a-z0-9]+)\//i);
         return m ? m[1] : id;
       }
       if (id.indexOf('zeomeo:') === 0) return id.slice(7);
-      return id; // "i4a6fea779c2" stays as-is
+      return id;
     },
   },
 };
@@ -1159,7 +1148,6 @@ function fetchMovieData(id) {
   });
 }
 
-// ★ FIX: yavidss BEFORE zeomeo, so 32-hex yavidss IDs never mis-route
 function detectSource(id) {
   if (!id) return SOURCE_TYPES.UNKNOWN;
 
@@ -1181,18 +1169,14 @@ function detectSource(id) {
   return SOURCE_TYPES.UNKNOWN;
 }
 
-// ★ FIX: yavidss URL extraction BEFORE zeomeo detection
 function extractVideoId(input) {
   if (!input) return null;
 
-  // yavidss full URL → extract 32-hex
   const yavMatch = input.match(/yavidssgood\.com\/([A-F0-9]{32})/i);
   if (yavMatch) return yavMatch[1];
 
-  // bare 32-hex → yavidss
   if (/^[A-F0-9]{32}$/.test(input)) return input;
 
-  // zeomeo (i-prefixed, prefixed, or full URL)
   if (APIS.zeomeo.detect(input)) {
     return APIS.zeomeo.extractId(input);
   }
@@ -1300,6 +1284,42 @@ function loadVideoFromWorker(id, sourceType) {
 }
 
 // ============================================================
+// ZEOMEO IFRAME-URL DETECTION HELPER
+// ============================================================
+function isZeomeoIframe(iframeUrl) {
+  return !!(iframeUrl && iframeUrl.indexOf('vid.zeomeo.com') !== -1);
+}
+
+// Apply a proxied Zeomeo URL and finish loading.
+function applyZeomeoIframe(iframeUrl, movieData) {
+  const m = iframeUrl.match(/vid\.zeomeo\.com\/files\/([a-z0-9]+)\//i);
+  if (!m) return false;
+  const proxied = buildZeomeoProxyUrl(m[1]);
+  console.log('🔄 Detected zeomeo video, routing through proxy...');
+  console.log('📡 Using proxied zeomeo URL:', proxied);
+
+  if (movieData) {
+    if (movieData.cover_url) setPosterImage(movieData.cover_url, movieData.title);
+    if (movieData.title) {
+      triggerSubtitleFetch(
+        movieData.title,
+        isAnimeVideo(movieData.title) || currentCategory === 'anime'
+      );
+    }
+  }
+
+  if (videoSource) {
+    videoSource.src = proxied;
+    videoSource.type = 'application/vnd.apple.mpegurl';
+  }
+  if (video) video.load();
+  videoLoaded = true;
+  if (loader) loader.classList.remove('on');
+  hideLoading();
+  return true;
+}
+
+// ============================================================
 // MAIN LOAD VIDEO LOGIC
 // ============================================================
 function loadVideo(inputId) {
@@ -1307,7 +1327,6 @@ function loadVideo(inputId) {
 
   // ── Zeomeo short-circuit ─────────────────────────────────
   if (APIS.zeomeo.detect(inputId)) {
-    // ★ FIX: extractId keeps the leading "i" → "i4a6fea779c2"
     const bareId = APIS.zeomeo.extractId(inputId);
     currentId = bareId;
     currentSource = SOURCE_TYPES.ZEOMEO;
@@ -1426,6 +1445,11 @@ function loadVideo(inputId) {
           }
         }
 
+        // ★ NEW: Zeomeo branch
+        if (isZeomeoIframe(iframeUrl)) {
+          if (applyZeomeoIframe(iframeUrl, data)) return;
+        }
+
         if (iframeUrl && iframeUrl.indexOf('veporn.com') !== -1) {
           const parts = iframeUrl.split('/');
           const slug = parts.pop();
@@ -1509,6 +1533,11 @@ function loadVideo(inputId) {
             hideLoading();
             return;
           }
+        }
+
+        // ★ NEW: Zeomeo branch
+        if (isZeomeoIframe(movie.iframe_url)) {
+          if (applyZeomeoIframe(movie.iframe_url, movie)) return;
         }
 
         if (movie.iframe_url && movie.iframe_url.indexOf('veporn.com') !== -1) {
@@ -1681,6 +1710,11 @@ function loadVideo(inputId) {
         }
       }
 
+      // ★ NEW: Zeomeo branch
+      if (isZeomeoIframe(iframeUrl)) {
+        if (applyZeomeoIframe(iframeUrl, data)) return;
+      }
+
       if (iframeUrl && iframeUrl.indexOf('veporn.com') !== -1) {
         const parts = iframeUrl.split('/');
         const slug = parts.pop();
@@ -1756,7 +1790,6 @@ function loadVepornVideo(slug) {
 // VIDEO SOURCE LOADER
 // ============================================================
 function loadVideoSource(id) {
-  // ★ FIX: yavidss 32-hex takes priority over zeomeo
   if (/^[A-F0-9]{32}$/i.test(id)) {
     currentSource = SOURCE_TYPES.YAVIDSS;
     const proxied = buildYavidssProxyUrl(id);
@@ -1778,7 +1811,6 @@ function loadVideoSource(id) {
   if (currentSource === SOURCE_TYPES.ZEOMEO || APIS.zeomeo.detect(id)) {
     currentSource = SOURCE_TYPES.ZEOMEO;
 
-    // ★ FIX: keep the leading "i"
     const bareId = APIS.zeomeo.extractId(id);
     const proxied = buildZeomeoProxyUrl(bareId);
 
