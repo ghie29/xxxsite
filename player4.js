@@ -500,6 +500,12 @@ function buildZeomeoProxyUrl(id) {
   return PROXY_SERVER + '/?url=' + encodeURIComponent(hlsUrl);
 }
 
+// Build a direct link to the worker's javtiful iframe page.
+// Used as the final fallback for numeric IDs that don't have API metadata.
+function buildJavtifulIframeUrl(id) {
+  return WORKER_URL + '/javtiful/' + id;
+}
+
 // ============================================================
 // SOURCE TYPES & APIS
 // ============================================================
@@ -1247,17 +1253,24 @@ function fetchVepornVideo(slug) {
   });
 }
 
+// ============================================================
+// WORKER JSON LOADERS
+//   NOTE: `/bamberry/` now returns an HTML iframe page (not JSON),
+//   so we no longer call it through this JSON-expecting helper.
+//   Only `/veporn/` and `/zeomeo/` return JSON.
+// ============================================================
 function loadVideoFromWorker(id, sourceType) {
   return new Promise(function (resolve, reject) {
     let endpoint = '';
-    if (sourceType === SOURCE_TYPES.BAMBERRY) {
-      endpoint = '/bamberry/';
-    } else if (sourceType === SOURCE_TYPES.VEPORN) {
+    if (sourceType === SOURCE_TYPES.VEPORN) {
       endpoint = '/veporn/';
     } else if (sourceType === SOURCE_TYPES.ZEOMEO) {
       endpoint = '/zeomeo/';
     } else {
-      endpoint = '/veporn/';
+      // BAMBERRY is not a JSON endpoint anymore — bail out so caller
+      // can fall through to the iframe fallback.
+      reject(new Error('No JSON worker endpoint for source: ' + sourceType));
+      return;
     }
 
     const url = WORKER_URL + endpoint + id;
@@ -1491,11 +1504,11 @@ function loadVideo(inputId) {
     return;
   }
 
-  // Numeric ID
+  // Numeric ID → javtiful iframe embed
   if (/^\d+$/.test(inputId)) {
     console.log('📌 Numeric ID detected:', inputId);
     currentId = inputId;
-    currentSource = SOURCE_TYPES.BAMBERRY;
+    currentSource = SOURCE_TYPES.JAVTIFUL;
     if (loader) loader.classList.add('on');
     if (errorState) errorState.classList.remove('visible');
 
@@ -1508,11 +1521,17 @@ function loadVideo(inputId) {
       }
     }
 
+    // ★ FIX: Try the API for poster/title only. The video itself
+    //   is served via the javtiful iframe page from the worker.
+    //   If the API knows about this numeric ID, use its metadata
+    //   to render the poster and title before showing the iframe.
+    //   If the API doesn't know, we just go straight to the iframe.
     searchMovieByNumericId(inputId)
       .then(function (movie) {
         console.log('✅ Found movie data in API:', movie);
         currentMovieData = movie;
 
+        // yavidss-backed movies still play as HLS directly
         if (movie.iframe_url && movie.iframe_url.indexOf('yavidssgood.com') !== -1) {
           const match = movie.iframe_url.match(/yavidssgood\.com\/([A-F0-9]{32})/i);
           if (match) {
@@ -1535,11 +1554,12 @@ function loadVideo(inputId) {
           }
         }
 
-        // ★ NEW: Zeomeo branch
+        // Zeomeo-backed movies play as HLS through the proxy
         if (isZeomeoIframe(movie.iframe_url)) {
           if (applyZeomeoIframe(movie.iframe_url, movie)) return;
         }
 
+        // Veporn-backed movies
         if (movie.iframe_url && movie.iframe_url.indexOf('veporn.com') !== -1) {
           const parts = movie.iframe_url.split('/');
           const slug = parts.pop();
@@ -1554,106 +1574,20 @@ function loadVideo(inputId) {
           }
         }
 
+        // Set poster + title, then show javtiful iframe
         if (movie.cover_url) setPosterImage(movie.cover_url, movie.title);
         if (movie.title) {
           const isAnime = isAnimeVideo(movie.title) || currentCategory === 'anime';
           triggerSubtitleFetch(movie.title, isAnime);
         }
 
-        if (movie.iframe_url) {
-          console.log('🎬 Using iframe_url from API:', movie.iframe_url);
-
-          if (
-            movie.iframe_url.indexOf('javtiful') !== -1 ||
-            movie.iframe_url.indexOf('javtiful.com') !== -1
-          ) {
-            if (movie.iframe_url.indexOf('yavidssgood.com') !== -1) {
-              const match = movie.iframe_url.match(
-                /yavidssgood\.com\/([A-F0-9]{32})/i
-              );
-              if (match) {
-                if (videoSource) {
-                  videoSource.src = buildYavidssProxyUrl(match[1]);
-                  videoSource.type = 'application/vnd.apple.mpegurl';
-                }
-              } else {
-                if (videoSource) videoSource.src = movie.iframe_url;
-              }
-            } else {
-              if (videoSource) videoSource.src = movie.iframe_url;
-            }
-            if (video) video.load();
-            videoLoaded = true;
-            if (loader) loader.classList.remove('on');
-            hideLoading();
-          } else {
-            loadVideoFromWorker(inputId, SOURCE_TYPES.BAMBERRY)
-              .then(function (result) {
-                console.log('Got video from worker:', result);
-                if (videoSource) {
-                  videoSource.src = result.url;
-                  videoSource.type = result.type || 'video/mp4';
-                }
-                if (video) video.load();
-                videoLoaded = true;
-                if (loader) loader.classList.remove('on');
-                hideLoading();
-              })
-              .catch(function (err) {
-                console.warn('Worker failed:', err.message);
-                showIframeFallback(movie.iframe_url);
-              });
-          }
-          return;
-        }
-
-        loadVideoFromWorker(inputId, SOURCE_TYPES.BAMBERRY)
-          .then(function (result) {
-            console.log('Got video from worker:', result);
-            if (result.poster && !movie.cover_url) {
-              setPosterImage(result.poster, result.title);
-            }
-            if (result.title) {
-              const isAnime = isAnimeVideo(result.title) || currentCategory === 'anime';
-              triggerSubtitleFetch(result.title, isAnime);
-            }
-            if (videoSource) {
-              videoSource.src = result.url;
-              videoSource.type = result.type || 'video/mp4';
-            }
-            if (video) video.load();
-            videoLoaded = true;
-            if (loader) loader.classList.remove('on');
-            hideLoading();
-          })
-          .catch(function (err) {
-            console.warn('Worker failed:', err.message);
-            showIframeFallback('https://javtiful.com/embed/' + inputId);
-          });
+        showIframeFallback(buildJavtifulIframeUrl(inputId));
       })
       .catch(function (err) {
         console.warn('⚠️ Could not find movie in API:', err.message);
-        loadVideoFromWorker(inputId, SOURCE_TYPES.BAMBERRY)
-          .then(function (result) {
-            console.log('Got video from worker (fallback):', result);
-            if (result.poster) setPosterImage(result.poster, result.title);
-            if (result.title) {
-              const isAnime = isAnimeVideo(result.title) || currentCategory === 'anime';
-              triggerSubtitleFetch(result.title, isAnime);
-            }
-            if (videoSource) {
-              videoSource.src = result.url;
-              videoSource.type = result.type || 'video/mp4';
-            }
-            if (video) video.load();
-            videoLoaded = true;
-            if (loader) loader.classList.remove('on');
-            hideLoading();
-          })
-          .catch(function (err) {
-            console.warn('Worker fallback failed:', err.message);
-            showIframeFallback('https://javtiful.com/embed/' + inputId);
-          });
+        // ★ FIX: skip /bamberry/ JSON expectation entirely and go
+        //   straight to the iframe embed from the worker.
+        showIframeFallback(buildJavtifulIframeUrl(inputId));
       });
 
     return;
@@ -1877,8 +1811,9 @@ function showIframeFallback(url) {
   iframe.style.height = '100%';
   iframe.style.border = 'none';
   iframe.style.display = 'block';
-  iframe.allow = 'autoplay; encrypted-media; fullscreen';
+  iframe.allow = 'autoplay; encrypted-media; fullscreen; picture-in-picture';
   iframe.allowFullscreen = true;
+  iframe.referrerPolicy = 'origin';
 
   const container = $id('playerContainer');
   if (!container) return;
@@ -2453,3 +2388,4 @@ console.log(
 console.log('🎌 Anime detection enabled - extracts anime name for better subtitle matching');
 console.log('🔄 Yavidss proxy server enabled: ' + PROXY_SERVER);
 console.log('📡 Zeomeo HLS source enabled: ' + ZEOMEO_BASE);
+console.log('🖼️ Javtiful numeric IDs now play via iframe embed (no extraction)');
